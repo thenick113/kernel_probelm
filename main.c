@@ -17,7 +17,7 @@
 
 struct sstf_data {
     struct list_head queue;
-    int direction;
+    int count;
     sector_t current_position;
 };
 
@@ -39,8 +39,8 @@ static int sstf_dispatch(struct request_queue *q, int force)
     rq = list_first_entry_or_null(&nd->queue, struct request, queuelist);
     if (rq) {
                 list_del_init(&rq->queuelist);
-        
-                printk("list %llu",blk_rq_pos(rq));
+                printk("There are %d requests in the list.\n Dispatch %llu\n", nd->count,blk_rq_pos(rq));
+                nd->count --;
                 elv_dispatch_sort(q, rq);
                 return 1;
     }
@@ -61,6 +61,7 @@ static void sstf_add_request(struct request_queue *q, struct request *rq)
         //such that this element should be dispatched next
         //if no other elements come in
         list_add_tail(&rq->queuelist, &nd->queue);
+        nd->count++;
         printk("only one\n");
     }
     else
@@ -89,6 +90,7 @@ static void sstf_add_request(struct request_queue *q, struct request *rq)
             if(af <= cf) // if af is closer cf, then added before the temp
             {
                 list_add_tail(&rq->queuelist,temp);
+                nd->count++;
                 printk("last sector = %llu\n",curr_req_sector);
                 insert_flag = 1;
                 break;
@@ -98,6 +100,7 @@ static void sstf_add_request(struct request_queue *q, struct request *rq)
         if (insert_flag ==0)
         {
             list_add_tail(&rq->queuelist,temp);
+            nd->count++;
             printk("last one\n");
         }
     }
@@ -135,6 +138,7 @@ static int sstf_init_queue(struct request_queue *q, struct elevator_type *e)
         kobject_put(&eq->kobj);
         return -ENOMEM;
     }
+    nd->count = 0;
     eq->elevator_data = nd;
 
     INIT_LIST_HEAD(&nd->queue);
@@ -170,6 +174,7 @@ static struct elevator_type elevator_sstf = {
 static int __init sstf_init(void)
 {
     return elv_register(&elevator_sstf);
+    
 }
 
 static void __exit sstf_exit(void)
